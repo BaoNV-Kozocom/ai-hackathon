@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\IngestLogController;
+use App\Http\Controllers\DemoController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,4 +16,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/threads/{id}/status', [\App\Http\Controllers\Api\ThreadController::class, 'updateStatus']);
 });
 
+
 Route::post('/ingest-log', [IngestLogController::class, 'store']);
+Route::post('/ingest-analysis/{threadId}', [IngestLogController::class, 'storeAnalysis']);
+
+Route::post('/demo/login-error', [DemoController::class, 'loginError']);
