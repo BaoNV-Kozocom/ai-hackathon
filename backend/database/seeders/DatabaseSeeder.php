@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
         User::factory()->create([
             'name' => 'Demo User',
             'email' => 'admin@admin.com',
+            'password' => 'password',
         ]);
 
         // Create a main project
