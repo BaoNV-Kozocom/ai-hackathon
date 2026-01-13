@@ -32,7 +32,20 @@ export default function ProtectedRoute() {
 
 // Better approach for ProtectedRoute with Loading state:
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-    const { user } = useAuthStore();
+    const { user, isLoading, isInitialized } = useAuthStore();
+
+    // Show loading while checking auth
+    if (isLoading || !isInitialized) {
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                    <p className="text-neutral-500 text-sm">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
     if (!user) {
         return <Navigate to="/login" replace />;
     }
