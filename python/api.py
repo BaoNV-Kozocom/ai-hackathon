@@ -2,6 +2,7 @@
 FastAPI routes and endpoints for Laravel Error Analysis Agent.
 """
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 from agent.gpt import ask
 from tools.functions import commit_and_push
@@ -18,6 +19,15 @@ def create_app() -> FastAPI:
         title="Laravel Error Analysis Agent",
         description="AI-powered error analysis for Laravel applications",
         version="1.0.0"
+    )
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     return app
@@ -141,7 +151,6 @@ Please analyze this error and provide a fix.
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
     return {"status": "healthy"}
-
 
 @app.post("/commit-code")
 async def commit_code(request: Request) -> Dict[str, Any]:

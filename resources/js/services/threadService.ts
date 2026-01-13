@@ -2,7 +2,7 @@ import axios from "axios";
 import { Thread, Message } from "../types/dashboard";
 
 const API_BASE = "/api";
-const PYTHON_API_BASE = "http://localhost:8001";
+const PYTHON_API_BASE = "http://localhost:5001";
 
 export const threadService = {
     async fetchThreads(filter: string = "all"): Promise<Thread[]> {
