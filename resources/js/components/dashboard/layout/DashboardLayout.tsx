@@ -1,16 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { LayoutList, PanelLeft } from "lucide-react";
 import { useThreads } from "@/hooks/useThreads";
 import ThreadList from "../sidebar/ThreadList";
 import ChatInterface from "../chat/ChatInterface";
 
 export default function DashboardLayout() {
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // Get initial thread from URL
+    const getInitialThreadId = (): number | null => {
+        const threadParam = searchParams.get("thread");
+        if (threadParam) {
+            const parsed = parseInt(threadParam, 10);
+            return isNaN(parsed) ? null : parsed;
+        }
+        return null;
+    };
+
     const [selectedThreadId, setSelectedThreadId] = useState<number | null>(
-        null
+        getInitialThreadId
     );
     const [filter, setFilter] = useState("open"); // open, resolved, all
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const { data: threads, isLoading } = useThreads(filter);
+
+    // Handle thread selection - update URL
+    const handleSelectThread = useCallback(
+        (id: number) => {
+            setSelectedThreadId(id);
+            setSearchParams({ thread: id.toString() }, { replace: true });
+        },
+        [setSearchParams]
+    );
+
+    // Handle back button - clear URL
+    const handleBack = useCallback(() => {
+        setSelectedThreadId(null);
+        setSearchParams({}, { replace: true });
+    }, [setSearchParams]);
 
     return (
         <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
@@ -31,7 +59,7 @@ export default function DashboardLayout() {
                         filter={filter}
                         setFilter={setFilter}
                         selectedThreadId={selectedThreadId}
-                        setSelectedThreadId={setSelectedThreadId}
+                        setSelectedThreadId={handleSelectThread}
                     />
                 </div>
             </div>
@@ -56,7 +84,7 @@ export default function DashboardLayout() {
                     {selectedThreadId ? (
                         <ChatInterface
                             threadId={selectedThreadId}
-                            onBack={() => setSelectedThreadId(null)}
+                            onBack={handleBack}
                         />
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-neutral-500 select-none">

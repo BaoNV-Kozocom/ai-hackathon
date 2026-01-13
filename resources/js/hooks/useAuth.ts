@@ -5,7 +5,12 @@ import { useState } from "react";
 
 export const useAuth = () => {
     const navigate = useNavigate();
-    const { setUser, setIsAuthenticated } = useAuthStore();
+    const {
+        setUser,
+        setIsAuthenticated,
+        setIsLoading: setStoreLoading,
+        setIsInitialized,
+    } = useAuthStore();
     const [errors, setErrors] = useState<Record<string, string[]>>({});
     const [isLoading, setIsLoading] = useState(false);
 
@@ -44,12 +49,16 @@ export const useAuth = () => {
     };
 
     const fetchUser = async () => {
+        setStoreLoading(true);
         try {
             const response = await axiosClient.get("/user");
             setUser(response.data);
         } catch (error) {
             setUser(null);
             setIsAuthenticated(false);
+        } finally {
+            setStoreLoading(false);
+            setIsInitialized(true);
         }
     };
 

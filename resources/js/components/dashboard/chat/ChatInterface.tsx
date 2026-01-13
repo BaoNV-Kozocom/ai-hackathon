@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
     CheckCircle2,
     MoreHorizontal,
-    Send,
     Code2,
     GitCommit,
     ListTodo,
@@ -26,7 +25,6 @@ export default function ChatInterface({
     const { data: messages, isLoading } = useThreadMessages(threadId);
     const bottomRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
-    const [inputValue, setInputValue] = useState("");
 
     // Mark Resolved Mutation
     const resolveMutation = useMutation({
@@ -57,30 +55,6 @@ export default function ChatInterface({
             alert(`❌ Commit failed: ${error.message || "Unknown error"}`);
         },
     });
-
-    // Send Message Mutation
-    const sendMessageMutation = useMutation({
-        mutationFn: (content: string) =>
-            threadService.sendMessage(threadId, content),
-        onSuccess: () => {
-            queryClient.invalidateQueries({
-                queryKey: ["threadMessages", threadId],
-            });
-            setInputValue("");
-        },
-    });
-
-    const handleSendMessage = () => {
-        if (!inputValue.trim()) return;
-        sendMessageMutation.mutate(inputValue);
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
-        }
-    };
 
     // Smart Scroll: Scroll to bottom when new messages appear
     useEffect(() => {
@@ -160,28 +134,6 @@ export default function ChatInterface({
 
             {/* Input Area */}
             <div className="p-4 border-t border-white/10 bg-neutral-900 shrink-0">
-                <div className="max-w-4xl mx-auto relative group">
-                    <div className="absolute inset-0 bg-linear-to-r from-indigo-500/20 to-purple-500/20 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Ask AI to investigate further..."
-                        disabled={sendMessageMutation.isPending}
-                        className="w-full bg-neutral-950/80 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-sm text-neutral-200 focus:outline-none focus:border-indigo-500/50 transition-all relative z-10 placeholder:text-neutral-600 disabled:opacity-50"
-                    />
-                    <button
-                        onClick={handleSendMessage}
-                        disabled={
-                            !inputValue.trim() || sendMessageMutation.isPending
-                        }
-                        className="absolute right-2 top-2 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors z-20 shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
-                </div>
-
                 {/* Action Shortcuts */}
                 <div className="flex gap-2 mt-3 overflow-x-auto pb-1 items-center justify-center">
                     <button className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium border border-emerald-500/20 transition-colors flex items-center gap-1.5 whitespace-nowrap">

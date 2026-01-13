@@ -5,7 +5,7 @@ FastAPI routes and endpoints for Laravel Error Analysis Agent.
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
-from tools.functions import commit_and_push
+from python.tools.git_functions import commit_and_push
 import requests
 import json
 import os
@@ -88,7 +88,7 @@ async def analyze_error(request: Request) -> Dict[str, Any]:
         print(f"Error connecting to Laravel API: {e}")
         thread_id = None
 
-    
+
     # Helper for storing responses
     def store_agent_response(thread_id, content) -> None:
         if not thread_id:
@@ -127,7 +127,7 @@ Line: {line}
 Stack Trace:
 {trace}
 """
-    
+
     # 2. Get AI Analysis Pipeline
     print(f"Starting AI Pipeline...")
     analysis_data = {}
@@ -137,7 +137,7 @@ Stack Trace:
     try:
         # --- Step 1: Analyzer ---
         analysis_data = agent_analyzer(error_log)
-        
+
         if "error" in analysis_data:
              error_msg = f"Analysis Failed: {analysis_data['error']}"
              store_agent_response(thread_id, error_msg)
@@ -145,7 +145,7 @@ Stack Trace:
                  "status": "error",
                  "message": error_msg
              }
-        
+
         # Store Analyzer Summary
         analyzer_summary = (
             f"**Analysis Report**\n"
@@ -158,14 +158,14 @@ Stack Trace:
 
         # --- Step 2: Fixer ---
         fixed_code = agent_fixer(analysis_data)
-        
+
         # Store Fixer Code
         # fixed_code is now a list of edits
         if isinstance(fixed_code, list):
             fixer_message = f"**Proposed Fixes:**\n```json\n{json.dumps(fixed_code, indent=2)}\n```"
         else:
             fixer_message = f"**Proposed Fix:**\n```\n{fixed_code}\n```"
-            
+
         store_agent_response(thread_id, fixer_message)
 
 
