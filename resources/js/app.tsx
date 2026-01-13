@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./components/dashboard/Dashboard";
 import Login from "./pages/auth/Login";
+import DemoLogin from "./pages/DemoLogin";
 import { RequireAuth } from "./components/auth/ProtectedRoute";
 import useAuthStore from "./stores/useAuthStore";
 import { useAuth } from "./hooks/useAuth";
@@ -25,6 +26,7 @@ function App() {
                 path="/login"
                 element={!!user ? <Navigate to="/" /> : <Login />}
             />
+            <Route path="/demo-login" element={<DemoLogin />} />
             <Route
                 path="/"
                 element={

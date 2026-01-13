@@ -70,10 +70,11 @@ class ThreadController extends Controller
         $thread = IssueThread::findOrFail($id);
         $validated = $request->validate([
             'content' => 'required|string',
+            'sender_type' => 'sometimes|in:human_user,ai_bot',
         ]);
 
         $message = $thread->messages()->create([
-            'sender_type' => 'human_user', // Fixed as human user for this endpoint
+            'sender_type' => $validated['sender_type'] ?? 'human_user',
             'content' => $validated['content'],
             'created_at' => now(),
         ]);

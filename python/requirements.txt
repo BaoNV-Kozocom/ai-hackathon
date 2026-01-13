@@ -1,9 +1,9 @@
-langchain
-langchain-openai
-langchain_classic
-langchain-community
 fastapi
 openai
 uvicorn[standard]
 faiss-cpu==1.10.0
 tiktoken
+duckduckgo-search
+requests
+langchain-community
+ddgs
