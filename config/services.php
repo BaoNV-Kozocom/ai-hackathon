@@ -34,7 +34,7 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
         'webhook_url' => env('SLACK_WEBHOOK_URL'),
-        'dashboard_url' => env('DASHBOARD_URL'),
+        'dashboard_url' => env('DASHBOARD_URL', 'http://127.0.0.1:8000/?thread='),
     ],
 
 ];

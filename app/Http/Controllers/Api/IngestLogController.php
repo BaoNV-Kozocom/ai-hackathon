@@ -7,6 +7,7 @@ use App\Events\ThreadCreated;
 use App\Http\Controllers\Controller;
 use App\Models\IssueThread;
 use App\Models\Project;
+use App\Services\SlackNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -51,10 +52,12 @@ class IngestLogController extends Controller
         );
 
         if ($thread->wasRecentlyCreated) {
+            $slackService = app(SlackNotificationService::class);
+            $slackService->sendNewIssueNotification($thread);
             ThreadCreated::dispatch($thread);
         }
 
-        // If thread was resolved but same error occurs, maybe reopen it? 
+        // If thread was resolved but same error occurs, maybe reopen it?
         // For now, let's keep it simple.
 
         // 3. Create the System Log Message
