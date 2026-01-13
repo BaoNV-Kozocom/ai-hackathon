@@ -37,6 +37,27 @@ export default function ChatInterface({
         },
     });
 
+    // Commit Code Mutation
+    const commitMutation = useMutation({
+        mutationFn: () =>
+            threadService.commitCode(
+                `thread-${threadId}`,
+                `Fix issue from thread #${threadId} via AI debugger`
+            ),
+        onSuccess: (data) => {
+            if (data.status === "success") {
+                alert(
+                    `✅ Code committed successfully!\nBranch: ${data.branch}`
+                );
+            } else {
+                alert(`❌ Commit failed: ${data.message}`);
+            }
+        },
+        onError: (error: any) => {
+            alert(`❌ Commit failed: ${error.message || "Unknown error"}`);
+        },
+    });
+
     // Send Message Mutation
     const sendMessageMutation = useMutation({
         mutationFn: (content: string) =>
@@ -166,8 +187,19 @@ export default function ChatInterface({
                     <button className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium border border-emerald-500/20 transition-colors flex items-center gap-1.5 whitespace-nowrap">
                         <Code2 className="w-3.5 h-3.5" /> Fix Bug
                     </button>
-                    <button className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium border border-indigo-500/20 transition-colors flex items-center gap-1.5 whitespace-nowrap">
-                        <GitCommit className="w-3.5 h-3.5" /> Commit Code
+                    <button
+                        onClick={() => commitMutation.mutate()}
+                        disabled={commitMutation.isPending}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium border border-indigo-500/20 transition-colors flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {commitMutation.isPending ? (
+                            <div className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+                        ) : (
+                            <GitCommit className="w-3.5 h-3.5" />
+                        )}
+                        {commitMutation.isPending
+                            ? "Committing..."
+                            : "Commit Code"}
                     </button>
                     <button className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-medium border border-amber-500/20 transition-colors flex items-center gap-1.5 whitespace-nowrap">
                         <ListTodo className="w-3.5 h-3.5" /> Do Task

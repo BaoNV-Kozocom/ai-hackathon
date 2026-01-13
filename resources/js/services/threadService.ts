@@ -2,6 +2,7 @@ import axios from "axios";
 import { Thread, Message } from "../types/dashboard";
 
 const API_BASE = "/api";
+const PYTHON_API_BASE = "http://localhost:5001";
 
 export const threadService = {
     async fetchThreads(filter: string = "all"): Promise<Thread[]> {
@@ -50,6 +51,24 @@ export const threadService = {
             `${API_BASE}/threads/${threadId}/messages`,
             { content }
         );
+        return response.data;
+    },
+
+    async commitCode(
+        issueName: string,
+        commitMessage: string,
+        files?: string[]
+    ): Promise<{
+        status: string;
+        branch?: string;
+        message: string;
+        push_output?: string;
+    }> {
+        const response = await axios.post(`${PYTHON_API_BASE}/commit-code`, {
+            issue_name: issueName,
+            commit_message: commitMessage,
+            files: files,
+        });
         return response.data;
     },
 };

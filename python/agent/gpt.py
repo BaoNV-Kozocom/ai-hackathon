@@ -20,13 +20,10 @@ def ask(prompt: str) -> str:
             function_args = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError:
             return {"status": "error", "message": "Invalid JSON arguments"}
-            
+
         match name:
             case "search_info":
                  return functions.search_info(function_args["query"])
-
-            case "create_fix_branch":
-                 return functions.create_fix_branch(function_args["issue_name"])
 
             case "read_error_file":
                 return functions.read_error_file(
