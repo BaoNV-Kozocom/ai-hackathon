@@ -9,6 +9,7 @@ import { RequireAuth } from "./components/auth/ProtectedRoute";
 import useAuthStore from "./stores/useAuthStore";
 import { useAuth } from "./hooks/useAuth";
 import "../css/app.css";
+import "./bootstrap";
 
 const queryClient = new QueryClient();
 

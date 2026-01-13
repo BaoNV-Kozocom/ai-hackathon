@@ -2,14 +2,16 @@
 
 namespace App\Events;
 
-use App\Models\ThreadMessage;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
+use App\Models\IssueThread;
 use Illuminate\Queue\SerializesModels;
 
-class MessageCreated implements ShouldBroadcastNow
+class ThreadUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -17,7 +19,7 @@ class MessageCreated implements ShouldBroadcastNow
      * Create a new event instance.
      */
     public function __construct(
-        public ThreadMessage $message
+        public IssueThread $thread
     ) {}
 
     /**
@@ -28,7 +30,8 @@ class MessageCreated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('thread.' . $this->message->issue_thread_id),
+            new PrivateChannel('threads'),
+            new PrivateChannel('thread.' . $this->thread->id),
         ];
     }
 
@@ -40,8 +43,8 @@ class MessageCreated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'id' => $this->message->id,
-            'thread_id' => $this->message->issue_thread_id,
+            'id' => $this->thread->id,
+            'status' => $this->thread->status,
         ];
     }
 }

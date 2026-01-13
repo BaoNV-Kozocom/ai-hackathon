@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\IssueThread;
+use App\Events\ThreadUpdated;
+use App\Events\MessageCreated;
 use Illuminate\Http\Request;
 
 class ThreadController extends Controller
@@ -59,6 +61,8 @@ class ThreadController extends Controller
 
         $thread->update(['status' => $validated['status']]);
 
+        ThreadUpdated::dispatch($thread);
+
         return response()->json($thread);
     }
 
@@ -81,6 +85,8 @@ class ThreadController extends Controller
 
         // Touch the thread to update latest_activity_at
         $thread->touch();
+
+        MessageCreated::dispatch($message);
 
         return response()->json($message);
     }
