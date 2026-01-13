@@ -17,18 +17,6 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "create_fix_branch",
-            "description": "Create a new git branch from 'develop' to start fixing a bug. MUST BE USED before applying any fixes.",
-            "parameters": {
-                "type": "object",
-                "properties": {"issue_name": {"type": "string", "description": "Short description of the issue (e.g., 'null-pointer', 'user-login')"}},
-                "required": ["issue_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "read_error_file",
             "description": "Read a specific range of lines from a file using a system command (sed). Useful for checking error logs or code snippets without loading the full file.",
             "parameters": {
@@ -46,11 +34,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "execute_command",
-            "description": "Execute a shell command found in the chat to fix errors or perform actions. Use this when the user asks to run a command or fix a file via command.",
+            "description": "Execute a shell command to fix errors or perform actions. Only use for file modifications (sed, echo, etc). DO NOT use for git commands.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {"type": "string", "description": "The shell command to execute"}
+                    "command": {"type": "string", "description": "The shell command to execute (NO git commands allowed)"}
                 },
                 "required": ["command"],
             },
@@ -59,20 +47,25 @@ TOOLS = [
 ]
 
 SYSTEM_PROMPT = """You are a specialized debugging assistant for Laravel applications.
-Your goal is to analyze the provided error report, read the relevant code files, AND AUTOMATICALLY FIX THE ISSUE using `execute_command`.
-You are an AUTONOMOUS AGENT. You must not just describe the fix, you MUST APPLY IT.
+Your goal is to analyze the provided error report, read the relevant code files, AND AUTOMATICALLY FIX THE ISSUE LOCALLY using `execute_command`.
+You are an AUTONOMOUS AGENT. You must not just describe the fix, you MUST APPLY IT to the local files.
+
+IMPORTANT RULES:
+- DO NOT use any git commands (no git add, git commit, git push, git checkout, git branch, etc.)
+- Only modify the source files directly using sed, echo, or similar file editing commands
+- The user will manually commit and push the changes later via the UI
 
 You must return your response in the following JSON format:
 {
     "analysis": "Brief explanation of the root cause.",
     "solution": "Description of the fix.",
-    "command": "The exact shell command to apply the fix (e.g., sed -i ... or other bash commands)."
+    "files_modified": ["List of files that were modified"],
+    "command": "The exact shell command used to apply the fix."
 }
 
 Use the `read_error_file` tool to inspect code.
 Use the `search_info` tool if you don't know how to fix the error or need external information.
-Before applying any file modifications, you MUST use `create_fix_branch` to switch to a new branch.
-Then use `execute_command` to apply fixes (sed/write) and verify.
+Use `execute_command` to apply fixes (sed/write) and verify - BUT NO GIT COMMANDS.
 YOU MUST EXECUTE THE COMMANDS TO FIX THE CODE. DO NOT STOP AT ANALYSIS.
 If you need to verify the fix, you can run php artisan commands via `execute_command`.
 """

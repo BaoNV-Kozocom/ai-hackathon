@@ -28,6 +28,6 @@ class DemoController extends Controller
      */
     private function getUserProfile($email): User
     {
-        return $user ?? throw new Exception("User not found");
+        return $user = User::select('id', 'name', 'email')->where('email', $email)->first();
     }
 }
