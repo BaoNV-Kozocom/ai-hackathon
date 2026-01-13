@@ -23,8 +23,8 @@ class SlackNotificationService
             return;
         }
 
-        $url = $dashboardUrl ? rtrim($dashboardUrl, '/') . '/threads/' . $thread->id : '';
-        
+        $url = $dashboardUrl ? rtrim($dashboardUrl) . $thread->id : '';
+
         $payload = [
             'text' => $this->formatSlackMessage($thread->title, $url, $thread->severity, $thread->environment),
         ];
@@ -48,7 +48,7 @@ class SlackNotificationService
      */
     private function formatSlackMessage(string $title, string $url, string $severity, string $environment): string
     {
-        $icon = match($severity) {
+        $icon = match ($severity) {
             'critical' => '🚨',
             'high' => '⚠️',
             'medium' => '⚡',
@@ -58,11 +58,11 @@ class SlackNotificationService
         $message = "{$icon} New Issue Detected: {$title}\n\n";
         $message .= "Severity: {$severity}\n";
         $message .= "Environment: {$environment}\n";
-        
+
         if ($url) {
             $message .= "View Details: {$url}";
         }
-        
+
         return $message;
     }
 }
