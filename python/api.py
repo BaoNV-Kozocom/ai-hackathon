@@ -2,6 +2,7 @@
 FastAPI routes and endpoints for Laravel Error Analysis Agent.
 """
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 from agent.gpt import ask
 import requests
@@ -18,7 +19,16 @@ def create_app() -> FastAPI:
         description="AI-powered error analysis for Laravel applications",
         version="1.0.0"
     )
-    
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     return app
 
 
@@ -34,13 +44,13 @@ async def analyze_error(request: Request) -> Dict[str, Any]:
     """
     # Parse error data from request
     error_data = await request.json()
-    
+
     # Extract error details
     message = error_data.get('message', 'No message')
     file = error_data.get('file', 'Unknown file')
     line = error_data.get('line', 'Unknown line')
     trace = error_data.get('trace', 'No trace available')
-    
+
     # 1. Ingest Log to Laravel
     try:
         ingest_payload = {
@@ -54,14 +64,14 @@ async def analyze_error(request: Request) -> Dict[str, Any]:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        
+
         print(f"Ingesting log to Laravel: {ingest_payload['message'][:50]}...")
         ingest_response = requests.post(
             f"{LARAVEL_API_URL}/ingest-log",
             json=ingest_payload,
             headers=headers
         )
-        
+
         if ingest_response.status_code >= 400:
              print(f"Failed to ingest log: {ingest_response.text}")
              # Continue with analysis even if storage fails? Or fail?
@@ -77,7 +87,7 @@ async def analyze_error(request: Request) -> Dict[str, Any]:
         print(f"Error connecting to Laravel API: {e}")
         thread_id = None
 
-    
+
     # Format the error information for the agent
     error_input = f"""
 Laravel Error Report:
@@ -91,7 +101,7 @@ Stack Trace:
 
 Please analyze this error and provide a fix.
 """
-    
+
     # 2. Get AI Analysis
     print(f"Analyzing error...")
     try:
@@ -110,24 +120,24 @@ Please analyze this error and provide a fix.
             message_payload = {
                 "content": analysis_result
             }
-            
+
             store_headers = {
                 "X-API-Key": PROJECT_API_KEY,
                 "Content-Type": "application/json",
                 "Accept": "application/json"
             }
-            
+
             store_response = requests.post(
                 f"{LARAVEL_API_URL}/ingest-analysis/{thread_id}",
                 json=message_payload,
                 headers=store_headers
             )
-            
+
             if store_response.status_code >= 400:
                 print(f"Failed to store AI response: {store_response.text}")
             else:
                 print("AI response stored successfully.")
-            
+
         except Exception as e:
             print(f"Error storing AI response: {e}")
 

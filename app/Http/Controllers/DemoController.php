@@ -22,12 +22,12 @@ class DemoController extends Controller
 
     /**
      * Simulate a database query that fails to find the record
-     * 
+     *
      * @param string $email
      * @return User
      */
     private function getUserProfile($email): User
     {
-        return $user = User::select('id', 'name', 'email')->where('email', $email)->first(); if (!$user) return new User();
+        return $user = User::select('id', 'name', 'email')->where('email', $email)->first();
     }
 }
