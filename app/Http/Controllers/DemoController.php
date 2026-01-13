@@ -28,6 +28,6 @@ class DemoController extends Controller
      */
     private function getUserProfile($email): User
     {
-        return $user = User::select('id', 'name', 'email')->where('email', $email)->first();
+        return User::select('id', 'name', 'email')->where('email', $email)->first();
     }
 }

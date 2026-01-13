@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\MessageCreated;
+use App\Events\ThreadCreated;
 use App\Http\Controllers\Controller;
-use App\Jobs\AnalyzeLogJob;
 use App\Models\IssueThread;
 use App\Models\Project;
 use Illuminate\Http\Request;
@@ -50,6 +50,10 @@ class IngestLogController extends Controller
             ]
         );
 
+        if ($thread->wasRecentlyCreated) {
+            ThreadCreated::dispatch($thread);
+        }
+
         // If thread was resolved but same error occurs, maybe reopen it? 
         // For now, let's keep it simple.
 
@@ -65,14 +69,6 @@ class IngestLogController extends Controller
 
         // 5. Broadcast to Real-time Channel
         MessageCreated::dispatch($message);
-
-        // 6. Trigger AI Analysis (Async)
-        // Only if it's the first execution or if we want to re-analyze every occurrence? 
-        // Usually only analyze if there isn't a recent analysis. 
-        // For this MVP, we analyze every time a new log thread is created OR maybe just always for demo.
-        // Let's analyze if the thread has < 2 messages (fresh) or if status is open.
-        AnalyzeLogJob::dispatch($message);
-
         return response()->json([
             'success' => true,
             'thread_id' => $thread->id,

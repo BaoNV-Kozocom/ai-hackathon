@@ -1,74 +1,112 @@
 import os
 from dotenv import load_dotenv
 
-TOOLS = [
+FIXER_TOOLS = [
     {
         "type": "function",
-        "function": {
-            "name": "search_info",
-            "description": "Search external or factual information (using DuckDuckGo) when the user asks a question that requires looking something up or when the error is difficult.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
+        "name": "search_info",
+        "description": "Search the internet for error messages, library documentation, or solutions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query."
+                }
             },
-        },
+            "required": ["query"]
+        }
     },
     {
         "type": "function",
-        "function": {
-            "name": "read_error_file",
-            "description": "Read a specific range of lines from a file using a system command (sed). Useful for checking error logs or code snippets without loading the full file.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string", "description": "Path to the file to read"},
-                    "line_start": {"type": "integer", "description": "Start line number (inclusive)"},
-                    "line_end": {"type": "integer", "description": "End line number (inclusive)"}
+        "name": "read_error_file",
+        "description": "Read a specific range of lines from a file to understand context.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the file."
                 },
-                "required": ["file_path", "line_start", "line_end"],
+                "line_start": {
+                    "type": "integer",
+                    "description": "Start line number (1-indexed). Optional. If omitted, reads entire file."
+                },
+                "line_end": {
+                    "type": "integer",
+                    "description": "End line number (1-indexed). Optional. If omitted, reads entire file."
+                }
             },
-        },
+            "required": ["file_path"]
+        }
     },
     {
         "type": "function",
-        "function": {
-            "name": "execute_command",
-            "description": "Execute a shell command to fix errors or perform actions. Only use for file modifications (sed, echo, etc). DO NOT use for git commands.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "The shell command to execute (NO git commands allowed)"}
-                },
-                "required": ["command"],
+        "name": "execute_command",
+        "description": "Execute a shell command (e.g., grep commands) on ubuntu. Use with caution.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The command to execute."
+                }
             },
-        },
-    },
+            "required": ["command"]
+        }
+    }
 ]
 
-SYSTEM_PROMPT = """You are a specialized debugging assistant for Laravel applications.
-Your goal is to analyze the provided error report, read the relevant code files, AND AUTOMATICALLY FIX THE ISSUE LOCALLY using `execute_command`.
-You are an AUTONOMOUS AGENT. You must not just describe the fix, you MUST APPLY IT to the local files.
+SYNTHETIC_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Reads the content of a file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Absolute path to the file."},
+                    "line_start": {"type": "integer", "description": "Optional start line (1-indexed)."},
+                    "line_end": {"type": "integer", "description": "Optional end line (1-indexed)."}
+                },
+                "required": ["file_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file_segment",
+            "description": "Replaces a specific range of lines in the file with new content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Absolute path to the file."},
+                    "line_start": {"type": "integer", "description": "Start line number (1-indexed)."},
+                    "line_end": {"type": "integer", "description": "End line number (1-indexed)."},
+                    "new_content": {"type": "string", "description": "The new content to write."}
+                },
+                "required": ["file_path", "line_start", "line_end", "new_content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_syntax_check",
+            "description": "Executes a shell command to check syntax.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The syntax check command to execute."}
+                },
+                "required": ["command"]
+            }
+        }
+    }
+]
 
-IMPORTANT RULES:
-- DO NOT use any git commands (no git add, git commit, git push, git checkout, git branch, etc.)
-- Only modify the source files directly using sed, echo, or similar file editing commands
-- The user will manually commit and push the changes later via the UI
-
-You must return your response in the following JSON format:
-{
-    "analysis": "Brief explanation of the root cause.",
-    "solution": "Description of the fix.",
-    "files_modified": ["List of files that were modified"],
-    "command": "The exact shell command used to apply the fix."
-}
-
-Use the `read_error_file` tool to inspect code.
-Use the `search_info` tool if you don't know how to fix the error or need external information.
-Use `execute_command` to apply fixes (sed/write) and verify - BUT NO GIT COMMANDS.
-YOU MUST EXECUTE THE COMMANDS TO FIX THE CODE. DO NOT STOP AT ANALYSIS.
-If you need to verify the fix, you can run php artisan commands via `execute_command`.
-"""
 # Load environment variables
 load_dotenv()
 

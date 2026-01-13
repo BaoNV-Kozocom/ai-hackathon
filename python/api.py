@@ -1,15 +1,18 @@
+
 """
 FastAPI routes and endpoints for Laravel Error Analysis Agent.
 """
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
-from agent.gpt import ask
 from tools.functions import commit_and_push
 import requests
 import json
 import os
 from config.config import LARAVEL_API_URL, PROJECT_API_KEY
+from agent.agent_analyzer import agent_analyzer
+from agent.agent_fixer import agent_fixer
+from agent.agent_synthetic import agent_synthetic
 
 def create_app() -> FastAPI:
     """
@@ -75,9 +78,6 @@ async def analyze_error(request: Request) -> Dict[str, Any]:
 
         if ingest_response.status_code >= 400:
              print(f"Failed to ingest log: {ingest_response.text}")
-             # Continue with analysis even if storage fails? Or fail?
-             # Let's verify: if storage failed, we might not have a thread_id.
-             # But let's try to proceed returning analysis to the caller at least.
              thread_id = None
         else:
              ingest_data = ingest_response.json()
@@ -88,9 +88,36 @@ async def analyze_error(request: Request) -> Dict[str, Any]:
         print(f"Error connecting to Laravel API: {e}")
         thread_id = None
 
+    
+    # Helper for storing responses
+    def store_agent_response(thread_id, content) -> None:
+        if not thread_id:
+            return
+        try:
+            print(f"Storing AI response for thread {thread_id}...")
+            message_payload = {
+                "content": content
+            }
+            store_headers = {
+                "X-API-Key": PROJECT_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            store_response = requests.post(
+                f"{LARAVEL_API_URL}/ingest-analysis/{thread_id}",
+                json=message_payload,
+                headers=store_headers
+            )
+            if store_response.status_code >= 400:
+                print(f"Failed to store AI response: {store_response.text}")
+            else:
+                print("AI response stored successfully.")
+        except Exception as e:
+            print(f"Error storing AI response: {e}")
+
 
     # Format the error information for the agent
-    error_input = f"""
+    error_log = f"""
 Laravel Error Report:
 ====================
 Message: {message}
@@ -99,52 +126,72 @@ Line: {line}
 
 Stack Trace:
 {trace}
-
-Please analyze this error and provide a fix.
 """
+    
+    # 2. Get AI Analysis Pipeline
+    print(f"Starting AI Pipeline...")
+    analysis_data = {}
+    fixed_code = ""
+    qa_result = ""
 
-    # 2. Get AI Analysis
-    print(f"Analyzing error...")
     try:
-        # Invoke the agent directly
-        analysis_result = ask(error_input)
+        # --- Step 1: Analyzer ---
+        analysis_data = agent_analyzer(error_log)
+        
+        if "error" in analysis_data:
+             error_msg = f"Analysis Failed: {analysis_data['error']}"
+             store_agent_response(thread_id, error_msg)
+             return {
+                 "status": "error",
+                 "message": error_msg
+             }
+        
+        # Store Analyzer Summary
+        analyzer_summary = (
+            f"**Analysis Report**\n"
+            f"- **Summary:** {analysis_data.get('error_summary')}\n"
+            f"- **File:** `{analysis_data.get('file_path')}:{analysis_data.get('line_number')}`\n"
+            f"- **Stack:** {analysis_data.get('language')} / {analysis_data.get('framework')}"
+        )
+        store_agent_response(thread_id, analyzer_summary)
+
+
+        # --- Step 2: Fixer ---
+        fixed_code = agent_fixer(analysis_data)
+        
+        # Store Fixer Code
+        # fixed_code is now a list of edits
+        if isinstance(fixed_code, list):
+            fixer_message = f"**Proposed Fixes:**\n```json\n{json.dumps(fixed_code, indent=2)}\n```"
+        else:
+            fixer_message = f"**Proposed Fix:**\n```\n{fixed_code}\n```"
+            
+        store_agent_response(thread_id, fixer_message)
+
+
+        # --- Step 3: Synthetic ---
+        qa_result = agent_synthetic(
+            analysis_data=analysis_data,
+            fixed_code=fixed_code
+        )
+
+        # Store Synthetic Result
+        store_agent_response(thread_id, f"**Synthesis & Verification Report:**\n{qa_result}")
+
+
     except Exception as e:
+        error_message = f"Error during AI pipeline: {str(e)}"
+        store_agent_response(thread_id, error_message)
         return {
             "status": "error",
-            "message": f"Error during AI analysis: {str(e)}"
+            "message": error_message
         }
-
-    # 3. Store AI Response in Laravel
-    if thread_id:
-        try:
-            print(f"Storing AI response for thread {thread_id}...")
-            message_payload = {
-                "content": analysis_result
-            }
-
-            store_headers = {
-                "X-API-Key": PROJECT_API_KEY,
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            }
-
-            store_response = requests.post(
-                f"{LARAVEL_API_URL}/ingest-analysis/{thread_id}",
-                json=message_payload,
-                headers=store_headers
-            )
-
-            if store_response.status_code >= 400:
-                print(f"Failed to store AI response: {store_response.text}")
-            else:
-                print("AI response stored successfully.")
-
-        except Exception as e:
-            print(f"Error storing AI response: {e}")
 
     return {
         "status": "success",
-        "analysis": analysis_result,
+        "analysis": analysis_data,
+        "fixed_code": fixed_code,
+        "qa_result": qa_result,
         "thread_id": thread_id
     }
 
