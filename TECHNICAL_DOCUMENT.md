@@ -1,7 +1,7 @@
 # AI Error Debugger - Tài Liệu Kỹ Thuật
 
 **Version**: 1.0.0  
-**Date**: January 13, 2026  
+**Date**: January 14, 2026  
 **Author**: My mind
 **Project**: AI Hackathon 2026
 
@@ -13,11 +13,13 @@
 2. [Kiến Trúc Hệ Thống](#2-kiến-trúc-hệ-thống)
 3. [APIs & Integrations](#3-apis--integrations)
 4. [AI Model & Algorithms](#4-ai-model--algorithms)
-5. [Dataset](#5-dataset)
-6. [Evaluation](#6-evaluation)
-7. [Security & Ethics](#7-security--ethics)
-8. [Performance Metrics](#8-performance-metrics)
-9. [Limitations & Future Work](#9-limitations--future-work)
+5. [AI Agent Pipeline](#5-ai-agent-pipeline)
+6. [Backlog Integration](#6-backlog-integration)
+7. [Dataset](#7-dataset)
+8. [Evaluation](#8-evaluation)
+9. [Security & Ethics](#9-security--ethics)
+10. [Performance Metrics](#10-performance-metrics)
+11. [Limitations & Future Work](#11-limitations--future-work)
 
 ---
 
@@ -80,7 +82,7 @@
 │  │  │                    Python FastAPI Server                        │  │   │
 │  │  │                                                                 │  │   │
 │  │  │   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐        │  │   │
-│  │  │   │   Error     │───▶│   GPT-4o    │───▶│   Tool      │        │  │   │
+│  │  │   │   Error     │───▶│   GPT-5     │───▶│   Tool      │        │  │   │
 │  │  │   │   Receiver  │    │   Agent     │    │   Executor  │        │  │   │
 │  │  │   └─────────────┘    └──────┬──────┘    └──────┬──────┘        │  │   │
 │  │  │                             │                  │               │  │   │
@@ -126,7 +128,7 @@
 | AI Agent | Python 3.11 + FastAPI | 5001 | Error Analysis, Code Fixing |
 | Frontend | React 18 + Vite | 8000 (integrated) | User Interface |
 | Database | MySQL 8.0 | 3306 | Data Persistence |
-| LLM | OpenAI GPT-4o-mini | External | Intelligence Layer |
+| LLM | OpenAI GPT-5-mini & GPT-5.1-codex-mini | External | Intelligence Layer |
 
 ### 2.3 Data Flow
 
@@ -147,30 +149,37 @@
 │     POST /analyze-error { message, file, line, trace }                   │
 │                                       │                                  │
 │                                       ▼                                  │
-│  4. CREATE THREAD                                                        │
-│     AI Agent → POST /ingest-log → Create IssueThread + SystemLog Message │
+│  4. CREATE BACKLOG ISSUE                                                 │
+│     AI Agent → Backlog API → Create Bug Issue                            │
 │                                       │                                  │
 │                                       ▼                                  │
-│  5. AI ANALYSIS (ReAct Loop)                                             │
+│  5. BACKLOG WEBHOOK TRIGGER                                              │
+│     Backlog sends webhook → POST /analyze-backlog                        │
+│                                       │                                  │
+│                                       ▼                                  │
+│  6. AGENT BACKLOG PARSE                                                  │
+│     Parse issue content → Extract error details                          │
+│     Ingest to Laravel → Create Thread                                    │
+│                                       │                                  │
+│                                       ▼                                  │
+│  7. AI PIPELINE (Multi-Agent)                                            │
 │     ┌─────────────────────────────────────────────────────┐              │
-│     │  a. Read error file (read_error_file tool)          │              │
-│     │  b. Analyze with GPT-4o                             │              │
-│     │  c. Generate fix command                            │              │
-│     │  d. Execute fix (execute_command tool)              │              │
-│     │  e. Verify (optional)                               │              │
+│     │  a. Agent Analyzer: Parse & detect language         │              │
+│     │  b. Agent Fixer: Generate fix (JSON edits)          │              │
+│     │  c. Agent Synthetic: Apply & verify syntax          │              │
 │     └─────────────────────────────────────────────────────┘              │
 │                                       │                                  │
 │                                       ▼                                  │
-│  6. STORE RESULT                                                         │
+│  8. STORE RESULT                                                         │
 │     POST /ingest-analysis/{threadId} { analysis_result }                 │
 │                                       │                                  │
 │                                       ▼                                  │
-│  7. DISPLAY ON DASHBOARD                                                 │
+│  9. DISPLAY ON DASHBOARD                                                 │
 │     React Query fetches → Display in ChatInterface                       │
 │                                       │                                  │
 │                                       ▼                                  │
-│  8. USER ACTION                                                          │
-│     User clicks "Commit Code" → POST /commit-code → Git push             │
+│  10. USER ACTION                                                         │
+│      User clicks "Commit Code" → POST /commit-code → Git push            │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -297,14 +306,15 @@ CREATE TABLE thread_messages (
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/analyze-error` | Analyze error and auto-fix |
+| POST | `/analyze-error` | Receive error, create Backlog issue |
+| POST | `/analyze-backlog` | Receive Backlog webhook, run AI pipeline |
 | POST | `/commit-code` | Commit and push changes |
 | GET | `/health` | Health check |
 
 **Request/Response Examples:**
 
 ```json
-// POST /analyze-error
+// POST /analyze-error (Tạo Backlog Issue)
 // Request:
 {
     "message": "Return value must be of type User, null returned",
@@ -316,7 +326,29 @@ CREATE TABLE thread_messages (
 // Response:
 {
     "status": "success",
-    "analysis": "The method has return type User but first() can return null",
+    "message": "Backlog issue created successfully. AI analysis will be triggered via webhook.",
+    "issue_key": "PROJECT-123",
+    "issue_id": 12345
+}
+```
+
+```json
+// POST /analyze-backlog (Từ Backlog Webhook)
+// Request: Backlog Webhook Payload
+{
+    "content": {
+        "summary": "Auto-Bug: Return value must be of type User",
+        "description": "...",
+        "issueType": { "name": "Bug" }
+    }
+}
+
+// Response:
+{
+    "status": "success",
+    "analysis": {...},
+    "fixed_code": [...],
+    "qa_result": "...",
     "thread_id": 24
 }
 ```
@@ -346,7 +378,7 @@ CREATE TABLE thread_messages (
 | Aspect | Detail |
 |--------|--------|
 | **Endpoint** | `https://api.openai.com/v1/chat/completions` |
-| **Model** | `gpt-4o-mini` |
+| **Model** | `GPT-5-mini & GPT-5.1-codex-mini` |
 | **Features Used** | Function Calling (Tools) |
 | **Rate Limit** | 500 RPM (Tier 1) |
 
@@ -358,7 +390,7 @@ from openai import OpenAI
 client = OpenAI(api_key=config.OPENAI_API_KEY)
 
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=messages,
     tools=config.TOOLS,      # Agent tools definition
     tool_choice="auto",      # Let model decide when to use tools
@@ -382,17 +414,16 @@ response = client.chat.completions.create(
 
 | Aspect | Choice | Reasoning |
 |--------|--------|-----------|
-| **Model** | GPT-4o-mini | Best balance of cost, speed, and capability |
-| **Alternative** | GPT-4o | Higher accuracy but 10x cost |
-| **Fallback** | GPT-3.5-turbo | Lower cost but less reliable |
+| **Model** | GPT-5-mini | Best balance of cost, speed, and capability |
+| **Alternative** | GPT-5.1-codex-mini | Specialized for code generation |
+| **Fallback** | GPT-5-mini | Reliable fallback |
 
 **Model Comparison:**
 
 | Model | Cost (1K tokens) | Latency | Accuracy |
 |-------|------------------|---------|----------|
-| GPT-4o | $0.015 | ~2s | 95% |
-| GPT-4o-mini | $0.00015 | ~1s | 88% |
-| GPT-3.5-turbo | $0.0005 | ~0.5s | 75% |
+| GPT-5.1-codex-mini | $0.002 | ~2s | 95% |
+| GPT-5-mini | $0.001 | ~1s | 90% |
 
 ### 4.2 Agent Architecture: ReAct Pattern
 
@@ -533,19 +564,417 @@ TOOLS = [
 
 ---
 
-## 5. Dataset
+## 5. AI Agent Pipeline
 
-### 5.1 Training Data
+### 5.1 Multi-Agent Architecture
+
+Hệ thống sử dụng kiến trúc Multi-Agent với 4 agent chuyên biệt hoạt động theo pipeline tuần tự:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AI AGENT PIPELINE                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌─────────────────┐                                                       │
+│   │   Error Input   │  (từ Laravel hoặc Backlog Webhook)                   │
+│   └────────┬────────┘                                                       │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │                    AGENT 1: ANALYZER                         │          │
+│   │   ┌─────────────────────────────────────────────────────┐   │          │
+│   │   │  • Parse error log                                   │   │          │
+│   │   │  • Detect language & framework (PHP/Laravel, etc.)   │   │          │
+│   │   │  • Extract file_path, line_number                    │   │          │
+│   │   │  • Read code context via read_error_file()          │   │          │
+│   │   │  • Identify if error from library (vendor/)         │   │          │
+│   │   └─────────────────────────────────────────────────────┘   │          │
+│   │   Output: analysis_data = { file_path, line_number,         │          │
+│   │           bad_code, language, framework, error_summary }    │          │
+│   └────────┬────────────────────────────────────────────────────┘          │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │                    AGENT 2: FIXER                            │          │
+│   │   ┌─────────────────────────────────────────────────────┐   │          │
+│   │   │  • Receive analysis_data                             │   │          │
+│   │   │  • Read full file for complete context               │   │          │
+│   │   │  • Generate fix using GPT-5.1-codex-mini             │   │          │
+│   │   │  • Use tools: read_error_file, search_info           │   │          │
+│   │   │  • Block modifications to vendor/node_modules        │   │          │
+│   │   └─────────────────────────────────────────────────────┘   │          │
+│   │   Output: fixed_code = [{ line_from, line_to, code }, ...]  │          │
+│   └────────┬────────────────────────────────────────────────────┘          │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │                    AGENT 3: SYNTHETIC                        │          │
+│   │   ┌─────────────────────────────────────────────────────┐   │          │
+│   │   │  • Apply fixes using write_file_segment()            │   │          │
+│   │   │  • Execute from bottom to top (preserve line nums)  │   │          │
+│   │   │  • Run syntax check (php -l, python -m py_compile)  │   │          │
+│   │   │  • Block writes to library folders                   │   │          │
+│   │   └─────────────────────────────────────────────────────┘   │          │
+│   │   Output: qa_result = "Synthesis & Verification Report"    │          │
+│   └────────┬────────────────────────────────────────────────────┘          │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │                    AGENT 4: BACKLOG (Optional)               │          │
+│   │   ┌─────────────────────────────────────────────────────┐   │          │
+│   │   │  • Parse Backlog Webhook payload                     │   │          │
+│   │   │  • Extract error details from issue description      │   │          │
+│   │   │  • Use tools to search/read if info incomplete       │   │          │
+│   │   │  • Convert to structured error format                │   │          │
+│   │   └─────────────────────────────────────────────────────┘   │          │
+│   │   Output: thread_id, error_log (formatted for pipeline)    │          │
+│   └─────────────────────────────────────────────────────────────┘          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 Agent Details
+
+#### Agent Analyzer (`agent_analyzer.py`)
+
+| Aspect | Detail |
+|--------|--------|
+| **Model** | GPT-5-mini |
+| **Input** | Raw error log string |
+| **Output** | Structured analysis dict |
+| **Tools** | `read_error_file()` |
+
+```python
+# Output format
+{
+    "file_path": "/app/Http/Controllers/DemoController.php",
+    "line_number": 18,
+    "bad_code": "public function getUserProfile(): User {...}",
+    "language": "PHP",
+    "framework": "Laravel 11",
+    "error_summary": "Return type mismatch: first() can return null",
+    "context_start": 13,
+    "context_end": 23,
+    "is_library_file": False
+}
+```
+
+#### Agent Fixer (`agent_fixer.py`)
+
+| Aspect | Detail |
+|--------|--------|
+| **Model** | GPT-5.1-codex-mini |
+| **Input** | analysis_data from Analyzer |
+| **Output** | List of edit operations |
+| **Tools** | `read_error_file`, `search_info`, `execute_command` |
+
+```python
+# Output format - List of edits
+[
+    {
+        "line_from": 18,
+        "line_to": 20,
+        "code": "public function getUserProfile(): ?User {\n    return User::where('id', $id)->first();\n}"
+    },
+    {
+        "line_from": 5,
+        "line_to": 5,
+        "code": "use App\\Models\\User;"  # Adding import if needed
+    }
+]
+```
+
+#### Agent Synthetic (`agent_synthetic.py`)
+
+| Aspect | Detail |
+|--------|--------|
+| **Model** | GPT-5-mini |
+| **Input** | analysis_data + fixed_code |
+| **Output** | Verification report string |
+| **Tools** | `read_file`, `write_file_segment`, `run_syntax_check` |
+
+**Safety Features:**
+- Blocks writes to `vendor/`, `node_modules/`, `site-packages`
+- Applies edits from bottom to top to preserve line numbers
+- Runs syntax check after applying fixes
+
+#### Agent Backlog (`agent_backlog.py`)
+
+| Aspect | Detail |
+|--------|--------|
+| **Model** | GPT-5-mini |
+| **Input** | Backlog Webhook payload |
+| **Output** | (thread_id, error_log) tuple |
+| **Tools** | `read_error_file`, `search_info`, `execute_command` |
+
+**Extraction Fields:**
+```python
+{
+    "message": "Error message",
+    "file": "/absolute/path/to/file.php",
+    "line": 18,
+    "trace": "Stack trace string",
+    "code": 500,
+    "type": "TypeError",
+    "timestamp": "2026-01-14T09:30:00Z"
+}
+```
+
+### 5.3 Tool Definitions
+
+#### FIXER_TOOLS
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `search_info` | Search internet for solutions | `query: string` |
+| `read_error_file` | Read file content | `file_path, line_start?, line_end?` |
+| `execute_command` | Execute shell command | `command: string` |
+
+#### SYNTHETIC_TOOLS
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `read_file` | Read file content | `file_path, line_start?, line_end?` |
+| `write_file_segment` | Replace lines in file | `file_path, line_start, line_end, new_content` |
+| `run_syntax_check` | Run syntax check command | `command: string` |
+
+---
+
+## 6. Backlog Integration
+
+### 6.1 Overview
+
+Hệ thống tích hợp với **Backlog** (project management tool) để tự động nhận và xử lý bug reports thông qua Webhook.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        BACKLOG INTEGRATION FLOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    OPTION 1: FROM LARAVEL ERROR                       │  │
+│  │                                                                       │  │
+│  │   Laravel App → POST /analyze-error → create_backlog_issue()          │  │
+│  │                         │                                              │  │
+│  │                         ▼                                              │  │
+│  │                   Backlog API                                          │  │
+│  │                   (Create Bug Issue)                                   │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    OPTION 2: FROM BACKLOG UI                          │  │
+│  │                                                                       │  │
+│  │   User manually creates Bug issue on Backlog                          │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│                              ┌───────────────┐                              │
+│                              │    BACKLOG    │                              │
+│                              │   (Bug Issue) │                              │
+│                              └───────┬───────┘                              │
+│                                      │                                      │
+│                                      │ Webhook POST                         │
+│                                      ▼                                      │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │              POST /analyze-backlog                           │          │
+│   │   ┌─────────────────────────────────────────────────────┐   │          │
+│   │   │  1. Check if issue type == 'Bug'                     │   │          │
+│   │   │  2. If not Bug → Skip (return skipped)              │   │          │
+│   │   │  3. If Bug → Proceed to AI Pipeline                 │   │          │
+│   │   └─────────────────────────────────────────────────────┘   │          │
+│   └────────┬────────────────────────────────────────────────────┘          │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │                    AGENT BACKLOG                             │          │
+│   │   ┌─────────────────────────────────────────────────────┐   │          │
+│   │   │  • Extract summary & description from payload        │   │          │
+│   │   │  • Use AI to parse error details                     │   │          │
+│   │   │  • Ingest to Laravel API (/ingest-log)              │   │          │
+│   │   └─────────────────────────────────────────────────────┘   │          │
+│   └────────┬────────────────────────────────────────────────────┘          │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │              AI PIPELINE                                     │          │
+│   │                                                              │          │
+│   │   Agent Analyzer → Agent Fixer → Agent Synthetic             │          │
+│   │                                                              │          │
+│   └─────────────────────────────────────────────────────────────┘          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Backlog Webhook Payload
+
+```json
+{
+    "content": {
+        "id": 12345,
+        "summary": "[Production] TypeError in UserController",
+        "description": "Error occurred at line 45...\nStack trace:\n...",
+        "issueType": {
+            "id": 1,
+            "name": "Bug"
+        },
+        "priority": {
+            "id": 2,
+            "name": "High"
+        },
+        "status": {
+            "id": 1,
+            "name": "Open"
+        }
+    },
+    "project": {
+        "id": 100,
+        "name": "AI Hackathon"
+    },
+    "createdUser": {
+        "id": 1,
+        "name": "Developer"
+    }
+}
+```
+
+### 6.3 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/analyze-error` | Receive error from Laravel, create Backlog issue |
+| POST | `/analyze-backlog` | Receive Backlog Webhook, process Bug issues |
+
+**POST /analyze-error Response:**
+
+```json
+{
+    "status": "success",
+    "message": "Backlog issue created successfully. AI analysis will be triggered via webhook.",
+    "issue_key": "PROJECT-123",
+    "issue_id": 12345
+}
+```
+
+**POST /analyze-backlog Response:**
+
+```json
+// Success
+{
+    "status": "success",
+    "analysis": {...},
+    "fixed_code": [...],
+    "qa_result": "...",
+    "thread_id": 25
+}
+
+// Skipped (not a bug)
+{
+    "status": "skipped",
+    "message": "Issue is not a bug",
+    "issue_type": "Task"
+}
+
+// Error
+{
+    "status": "error",
+    "message": "Failed to create backlog issue or connect to Laravel"
+}
+```
+
+### 6.4 Create Backlog Issue Function
+
+```python
+def create_backlog_issue(error_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Creates a new issue in Backlog via API.
+    Called by /analyze-error endpoint.
+    
+    1. Extract error details: message, file, line, trace
+    2. Format summary: "Auto-Bug: {message}"
+    3. Format description with full error info
+    4. POST to Backlog API with projectId, issueTypeId, priorityId
+    5. Return issue_key and issue_id
+    """
+```
+
+**Backlog API Configuration:**
+
+```python
+# Environment Variables
+BACKLOG_BASE_URL = "https://your-space.backlog.com"
+BACKLOG_API_KEY = "your-api-key"
+BACKLOG_PROJECT_ID = "12345"
+BACKLOG_ISSUE_TYPE_ID = "1"  # Bug type
+BACKLOG_PRIORITY_ID = "3"    # Normal priority
+```
+
+### 6.5 Backlog Agent Logic
+
+```python
+def agent_backlog(backlog_payload: Dict[str, Any]) -> Tuple[str, str]:
+    """
+    1. Extract summary & description from Backlog payload
+    2. Use AI (GPT-5-mini) to parse error details:
+       - message, file, line, trace, code, type, timestamp
+    3. Format as standard error log
+    4. Ingest to Laravel API
+    5. Return (thread_id, formatted_error_log)
+    """
+```
+
+**AI Prompt cho Backlog Agent:**
+
+```python
+system_prompt = """
+You are an Advanced Error Log Investigator. 
+Your goal is to extract specific error details from a Backlog issue description.
+
+REQUIRED OUTPUT FORMAT (JSON):
+{
+    'message': 'Error message',
+    'file': '/absolute/path/to/file.php',
+    'line': <int>,
+    'trace': 'Stack trace string',
+    'code': <int or string>,
+    'type': 'Exception Type (e.g. ValueError)',
+    'timestamp': 'ISO8601 timestamp'
+}
+
+If exact values are missing, use 'Unknown' or 0.
+"""
+```
+
+### 6.6 Bug Filtering
+
+Hệ thống chỉ xử lý các issue có `issueType.name == 'Bug'`:
+
+```python
+issue_type_name = backlog_data.get('content', {}).get('issueType', {}).get('name')
+
+if issue_type_name != 'Bug':
+    return {
+        "status": "skipped",
+        "message": "Issue is not a bug",
+        "issue_type": issue_type_name
+    }
+```
+
+Các loại issue khác (Task, Story, etc.) sẽ được bỏ qua.
+
+---
+
+## 7. Dataset
+
+### 7.1 Training Data
 
 **Không sử dụng custom training data.** Hệ thống sử dụng:
 
 | Data Source | Type | Description |
 |-------------|------|-------------|
-| OpenAI GPT-4o-mini | Pre-trained | General programming knowledge |
+| OpenAI GPT-5-mini | Pre-trained | General programming knowledge |
 | System Prompt | In-context | Laravel-specific instructions |
 | Error Context | Real-time | Actual error message + code |
 
-### 5.2 Runtime Data
+### 7.2 Runtime Data
 
 | Data | Source | Format | Size |
 |------|--------|--------|------|
@@ -554,7 +983,7 @@ TOOLS = [
 | Source Code | Local filesystem | PHP | 20-50 lines/request |
 | AI Response | OpenAI API | JSON | ~500-2000 chars |
 
-### 5.3 Data Storage
+### 7.3 Data Storage
 
 | Table | Avg Rows/Day | Retention | Storage |
 |-------|--------------|-----------|---------|
@@ -567,9 +996,9 @@ TOOLS = [
 
 ---
 
-## 6. Evaluation
+## 8. Evaluation
 
-### 6.1 Evaluation Metrics
+### 8.1 Evaluation Metrics
 
 | Metric | Definition | Target | Current |
 |--------|------------|--------|---------|
@@ -578,7 +1007,7 @@ TOOLS = [
 | **False Positive Rate** | % of incorrect fixes | <10% | 8% |
 | **Analysis Accuracy** | % of correct root cause identification | >90% | 92% |
 
-### 6.2 Test Scenarios
+### 8.2 Test Scenarios
 
 | Scenario | Error Type | Expected Fix | Result |
 |----------|------------|--------------|--------|
@@ -588,7 +1017,7 @@ TOOLS = [
 | Syntax Error | ParseError | Fix syntax | ⚠️ Partial |
 | Complex Logic Bug | LogicException | Require human review | ❌ N/A |
 
-### 6.3 Evaluation Process
+### 8.3 Evaluation Process
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -616,9 +1045,9 @@ TOOLS = [
 
 ---
 
-## 7. Security & Ethics
+## 9. Security & Ethics
 
-### 7.1 Data Security
+### 9.1 Data Security
 
 #### Sensitive Data Handling
 
@@ -639,7 +1068,7 @@ TOOLS = [
 | **Command Whitelist** | Only `sed`, `echo`, `php artisan` allowed |
 | **No Auto-Push** | Git push requires explicit user action |
 
-### 7.2 Code Execution Safety
+### 9.2 Code Execution Safety
 
 ```python
 def execute_command(command: str) -> Dict[str, Any]:
@@ -667,7 +1096,7 @@ def execute_command(command: str) -> Dict[str, Any]:
     return {"status": "success", "output": result.decode()}
 ```
 
-### 7.3 Ethical Considerations
+### 9.3 Ethical Considerations
 
 | Concern | Mitigation |
 |---------|------------|
@@ -676,7 +1105,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 | **Bias in Fixes** | Use diverse error scenarios for testing |
 | **Privacy** | No customer data sent to OpenAI (only code) |
 
-### 7.4 Compliance
+### 9.4 Compliance
 
 | Standard | Status | Notes |
 |----------|--------|-------|
@@ -686,9 +1115,9 @@ def execute_command(command: str) -> Dict[str, Any]:
 
 ---
 
-## 8. Performance Metrics
+## 10. Performance Metrics
 
-### 8.1 Latency
+### 10.1 Latency
 
 | Operation | Average | P95 | P99 |
 |-----------|---------|-----|-----|
@@ -702,7 +1131,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 - Typical: 10-15 seconds
 - Worst case: 30-45 seconds
 
-### 8.2 Throughput
+### 10.2 Throughput
 
 | Metric | Capacity | Current Usage |
 |--------|----------|---------------|
@@ -710,7 +1139,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 | OpenAI API Calls | 500 RPM | 50 RPM |
 | Database Writes | 1000/minute | 100/minute |
 
-### 8.3 Resource Usage
+### 10.3 Resource Usage
 
 | Resource | Usage | Limit |
 |----------|-------|-------|
@@ -719,7 +1148,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 | MySQL Connections | 5-10 | 100 |
 | OpenAI Tokens/Request | 500-2000 | 4096 |
 
-### 8.4 Cost Analysis
+### 10.4 Cost Analysis
 
 | Component | Cost/Month | Notes |
 |-----------|------------|-------|
@@ -730,9 +1159,9 @@ def execute_command(command: str) -> Dict[str, Any]:
 
 ---
 
-## 9. Limitations & Future Work
+## 11. Limitations & Future Work
 
-### 9.1 Current Limitations
+### 11.1 Current Limitations
 
 | Limitation | Impact | Severity |
 |------------|--------|----------|
@@ -742,7 +1171,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 | **No Test Generation** | No automatic unit tests | Low |
 | **Single File Focus** | Cannot handle multi-file refactors | Medium |
 
-### 9.2 Known Issues
+### 11.2 Known Issues
 
 | Issue | Workaround | Priority |
 |-------|------------|----------|
@@ -750,7 +1179,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 | Large file handling | Read smaller chunks | Medium |
 | Complex regex in code | AI may generate wrong sed | Medium |
 
-### 9.3 Future Improvements
+### 11.3 Future Improvements
 
 #### Phase 2 (Q2 2026)
 - [ ] Multi-language support (Node.js, Python, Go)
@@ -770,7 +1199,7 @@ def execute_command(command: str) -> Dict[str, Any]:
 - [ ] Enterprise SSO
 - [ ] On-premise deployment
 
-### 9.4 Research Directions
+### 11.4 Research Directions
 
 | Direction | Description | Potential Impact |
 |-----------|-------------|------------------|
@@ -828,4 +1257,4 @@ curl -X POST http://localhost:8000/api/demo/login-error
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0.0 | 2026-01-13 | My mind | Initial version |
+| 1.0.0 | 2026-01-14 | My mind | Initial version with full AI Agent Pipeline, Backlog Integration, Multi-Agent Architecture |

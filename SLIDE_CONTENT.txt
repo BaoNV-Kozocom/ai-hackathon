@@ -1,0 +1,381 @@
+====================================================
+SLIDE 1: TITLE
+====================================================
+Title: AI Error Debugger
+Subtitle: Autonomous AI Agent - Tự động phát hiện và sửa lỗi Production
+Event: AI Hackathon 2026
+
+====================================================
+SLIDE 2: VẤN ĐỀ - THE PROBLEM
+====================================================
+Title: 😫 Vấn đề: Debug Production Errors
+
+Scenario:
+🚨 03:00 AM - Production Alert!
+"TypeError: Return value must be of type User, null returned"
+
+Quy trình debug truyền thống:
+• Nhận alert, login server → 5 phút
+• Đọc log file, tìm error → 10-15 phút
+• Trace stack, tìm file lỗi → 10-20 phút
+• Đọc code, hiểu context → 15-30 phút
+• Viết fix, test local → 20-60 phút
+• Commit, deploy → 10-15 phút
+
+⏱️ Tổng: 1 - 2.5 giờ
+
+====================================================
+SLIDE 3: CHI PHÍ ẨN
+====================================================
+Title: 💰 Chi phí ẩn của bugs
+
+Chi phí trực tiếp:
+• Downtime cost: $5,600/phút (Fortune 500)
+• Developer time: ~$80/giờ
+• On-call stress: Burnout, turnover
+
+Chi phí gián tiếp:
+• Mất khách do service không ổn định
+• Fix nhanh → code xấu → lỗi mới
+• Chỉ 1-2 người biết fix
+
+Fact: 60% bugs có pattern tương tự!
+
+====================================================
+SLIDE 4: GIẢI PHÁP
+====================================================
+Title: 💡 Giải pháp: AI Error Debugger
+
+Flow:
+Error xảy ra → Tạo Backlog Issue → Webhook trigger → AI Pipeline → Developer review → Commit
+
+Key concept:
+• Centralized: Mọi bug đều qua Backlog
+• Autonomous: AI tự quyết định đọc file nào, sửa thế nào
+• Human-in-the-loop: Developer kiểm soát việc commit
+• Real-time: Phân tích và fix trong vài giây
+
+====================================================
+SLIDE 5: SO SÁNH TRƯỚC/SAU
+====================================================
+Title: ⚡ Trước vs Sau
+
+TRƯỚC:
+• Developer đọc log thủ công
+• Tìm file lỗi bằng kinh nghiệm
+• Tự viết fix code
+• Bug không được track
+• Thời gian: 1-2.5 giờ
+• Yêu cầu: Senior developer
+
+SAU (AI Debugger):
+• AI tự động capture log
+• Tự động tạo Bug trên Backlog
+• AI locate file chính xác
+• AI generate & apply fix
+• Mọi bug đều được track
+• Thời gian: 1-3 phút
+• Yêu cầu: Bất kỳ developer
+
+====================================================
+SLIDE 6: KIẾN TRÚC HỆ THỐNG
+====================================================
+Title: 🏗️ Kiến trúc hệ thống
+
+4 Components:
+
+1. Laravel App
+   • Error Handler bắt lỗi
+   • Gửi tới AI Agent
+   • API cho Dashboard
+
+2. Python AI Agent (Multi-Agent Pipeline)
+   • Agent Analyzer: Phân tích lỗi
+   • Agent Fixer: Tạo fix code
+   • Agent Synthetic: Apply & verify
+   • Agent Backlog: Parse từ Backlog
+
+3. React Dashboard
+   • Hiển thị log & analysis
+   • Button "Commit Code"
+
+4. Backlog Integration
+   • Webhook receiver
+   • Auto-process Bug issues
+
+====================================================
+SLIDE 7: AI AGENT WORKFLOW
+====================================================
+Title: 🤖 Multi-Agent Pipeline
+
+4 Agents hoạt động tuần tự:
+
+1️⃣ AGENT ANALYZER
+   • Parse error log
+   • Detect language/framework (PHP, Laravel...)
+   • Extract file_path, line_number
+   • Read code context
+
+2️⃣ AGENT FIXER
+   • Receive analysis data
+   • Read full file for context
+   • Generate fix (JSON list of edits)
+   • Block vendor/ modifications
+
+3️⃣ AGENT SYNTHETIC
+   • Apply fixes to files
+   • Run syntax check (php -l, etc.)
+   • Verify & report
+
+4️⃣ AGENT BACKLOG (Optional)
+   • Parse Backlog webhook
+   • Extract error from issue description
+   • Convert to standard format
+
+====================================================
+SLIDE 8: AI TOOLS
+====================================================
+Title: 🔧 Agent Tools
+
+FIXER TOOLS:
+• read_error_file → Đọc code từ file source
+• execute_command → Chạy shell commands
+• search_info → Tìm kiếm external (DuckDuckGo)
+
+SYNTHETIC TOOLS:
+• read_file → Đọc file content
+• write_file_segment → Thay thế lines trong file
+• run_syntax_check → Kiểm tra syntax
+
+GIT TOOLS:
+• commit_and_push → Tạo branch & push (khi user approve)
+
+====================================================
+SLIDE 9: DEMO SCENARIO
+====================================================
+Title: 🎬 Demo: Lỗi thực tế
+
+Code lỗi:
+public function getUserProfile(): User
+{
+    return User::where('id', 1)->first();
+    // ⚠️ first() có thể return NULL!
+}
+
+Error:
+"Return value must be of type User, null returned"
+
+====================================================
+SLIDE 10: DEMO - AI FLOW
+====================================================
+Title: 🎬 AI xử lý như thế nào?
+
+Step 1: Laravel bắt lỗi, gửi POST /analyze-error
+Step 2: Python tạo Backlog Issue (Auto-Bug)
+Step 3: Backlog gửi Webhook → /analyze-backlog
+Step 4: Agent Backlog parse error details
+Step 5: Agent Analyzer phân tích lỗi
+Step 6: Agent Fixer tạo fix code
+Step 7: Agent Synthetic apply & verify
+Step 8: Kết quả hiển thị trên Dashboard
+Step 9: User click "Commit Code"
+
+⏱️ Tổng thời gian: ~30 giây - 2 phút
+
+====================================================
+SLIDE 11: TECH STACK
+====================================================
+Title: 🛠️ Tech Stack
+
+Backend:
+• Laravel 11
+• MySQL 8
+• Sanctum Auth
+
+Frontend:
+• React 18 + TypeScript
+• TailwindCSS
+• React Query
+
+AI Agent:
+• Python 3.11
+• FastAPI
+• OpenAI GPT-5-mini & GPT-5.1-codex-mini
+• LangChain
+
+====================================================
+SLIDE 12: KẾT QUẢ
+====================================================
+Title: 📊 Kết quả
+
+Thời gian xử lý:
+• Truyền thống: 50 phút - 4 giờ
+• AI Debugger: 1-3 phút
+• Improvement: ~50x nhanh hơn
+
+🚀 Tiết kiệm 95% thời gian debug!
+
+====================================================
+SLIDE 13: BUSINESS IMPACT
+====================================================
+Title: 💵 Business Impact
+
+ROI Calculation:
+• Developer time saved: 2 giờ/bug × 10 bugs/tuần = 20 giờ/tuần
+• Cost saved: 20 giờ × $50/giờ = $1,000/tuần
+• Yearly savings: $50,000/năm
+
+Qualitative:
+✅ Consistency - Mọi fix theo best practices
+✅ Knowledge sharing - Không phụ thuộc 1 người
+✅ Documentation - Mỗi fix có explanation
+✅ Developer happiness - Không còn 3AM on-call!
+
+====================================================
+SLIDE 14: TÍNH NĂNG ĐÃ HOÀN THÀNH
+====================================================
+Title: ✅ Tính năng đã hoàn thành
+
+Core Features:
+• Auto Error Detection - Bắt lỗi từ Laravel
+• Multi-Agent Pipeline - 4 agents chuyên biệt
+• Auto Fix - Tự động sửa code local
+• Syntax Verification - Kiểm tra trước khi commit
+• Real-time Dashboard - Xem log & AI response
+• Manual Commit - User review trước khi push
+
+Backlog Integration:
+• Webhook receiver - Nhận Bug từ Backlog
+• Auto Bug Detection - Chỉ xử lý issue type Bug
+• AI Parsing - Extract error details từ description
+• Thread Management - Quản lý issue threads
+
+====================================================
+SLIDE 15: ROADMAP
+====================================================
+Title: 🔮 Roadmap
+
+Phase 2 (Q2 2026):
+• Multi-language (Node.js, Python, Go)
+• Slack/Discord notifications
+• Auto-generate unit tests
+
+Phase 3 (Q3 2026):
+• Multi-user dashboard
+• Code review integration
+• Metrics & Analytics
+
+Phase 4 (Q4 2026):
+• Self-hosted LLM
+• Enterprise features
+• SOC2 compliance
+
+====================================================
+SLIDE 16: KEY TAKEAWAY
+====================================================
+Title: 🎯 Key Takeaway
+
+"AI không thay thế developer,
+AI làm developer mạnh hơn"
+
+• Giảm 95% thời gian debug
+• Tiết kiệm ~$50,000/năm
+• Developer focus vào creative work
+
+====================================================
+SLIDE 17: Q&A
+====================================================
+Title: 🙋 Q&A
+
+Cảm ơn đã lắng nghe!
+
+Contact:
+• Developer: [Your Name]
+• Email: [your.email@company.com]
+• GitHub: [github.com/your-repo]
+
+====================================================
+BONUS SLIDES (NẾU CẦN)
+====================================================
+
+SLIDE B1: System Prompt
+-----------------------
+AI được hướng dẫn:
+• Phân tích error report
+• Đọc code files
+• TỰ ĐỘNG fix - không chỉ describe
+• KHÔNG dùng git commands
+• Trả về JSON với analysis + solution
+
+SLIDE B2: Challenges
+--------------------
+Challenges & Solutions:
+• AI sửa sai → Human review trước commit
+• Security → Whitelist commands, no auto-push
+• Large codebase → Chỉ đọc relevant files
+• Complex bugs → Search external + ask dev
+• Cost → GPT-5-mini ~$0.01/bug
+
+SLIDE B3: Database Schema
+-------------------------
+2 Main Tables:
+• issue_threads: Bug reports (id, title, status, severity)
+• thread_messages: Conversation (sender_type, content)
+
+Sender types: system_log, ai, user
+
+SLIDE B4: Backlog Integration Flow
+----------------------------------
+Full Flow:
+1. Laravel bắt lỗi (Exception Handler)
+2. Gửi POST /analyze-error với error data
+3. Python gọi create_backlog_issue()
+   • Tạo Bug issue trên Backlog
+   • Summary: "Auto-Bug: {error_message}"
+4. Backlog gửi Webhook → /analyze-backlog
+5. Check issueType == 'Bug'?
+   • Không → Skip
+   • Có → Tiếp tục
+6. Agent Backlog parse description
+   • Dùng AI extract: message, file, line, trace
+7. Ingest vào Laravel (/ingest-log)
+8. Chạy AI Pipeline:
+   • Analyzer → Fixer → Synthetic
+9. Lưu kết quả vào thread
+10. Hiển thị trên Dashboard
+
+Lợi ích:
+• Mọi bug đều được track trên Backlog
+• User có thể tạo bug thủ công trên Backlog
+• Tránh duplicate processing
+
+SLIDE B5: Multi-Agent Benefits
+------------------------------
+Tại sao Multi-Agent?
+• Separation of Concerns - Mỗi agent 1 nhiệm vụ
+• Specialized Models - Fixer dùng Codex, Analyzer dùng GPT
+• Better Quality - Mỗi step được verify
+• Easier Debug - Biết agent nào có vấn đề
+• Extensible - Thêm agent mới dễ dàng
+
+Pipeline: Error → Analyzer → Fixer → Synthetic → Result
+
+SLIDE B6: Agent Output Formats
+------------------------------
+Analyzer Output:
+{
+  "file_path": "/app/Controllers/Demo.php",
+  "line_number": 18,
+  "bad_code": "...",
+  "language": "PHP",
+  "framework": "Laravel 11",
+  "error_summary": "first() can return null"
+}
+
+Fixer Output:
+[
+  { "line_from": 18, "line_to": 20, "code": "..." }
+]
+
+Synthetic Output:
+"✅ Fix applied. Syntax check passed."
