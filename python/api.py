@@ -5,7 +5,7 @@ FastAPI routes and endpoints for Laravel Error Analysis Agent.
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
-from python.tools.git_functions import commit_and_push
+from tools.git_functions import commit_and_push
 import requests
 import json
 import os
@@ -13,6 +13,7 @@ from config.config import LARAVEL_API_URL, PROJECT_API_KEY
 from agent.agent_analyzer import agent_analyzer
 from agent.agent_fixer import agent_fixer
 from agent.agent_synthetic import agent_synthetic
+from agent.agent_backlog import agent_backlog
 
 def create_app() -> FastAPI:
     """
@@ -182,6 +183,131 @@ Stack Trace:
     except Exception as e:
         error_message = f"Error during AI pipeline: {str(e)}"
         store_agent_response(thread_id, error_message)
+        return {
+            "status": "error",
+            "message": error_message
+        }
+
+    return {
+        "status": "success",
+        "analysis": analysis_data,
+        "fixed_code": fixed_code,
+        "qa_result": qa_result,
+        "thread_id": thread_id
+    }
+
+
+@app.post("/analyze-backlog")
+async def analyze_backlog(request: Request) -> Dict[str, Any]:
+    """
+    Endpoint to receive error data, check if it's a bug, and if so,
+    ingest to backlog and run AI analysis.
+    """
+    # Parse error data from request
+    backlog_data = await request.json()
+    
+    # Check issue type from Backlog Webhook structure
+    # content -> issueType -> name
+    issue_type_name = backlog_data.get('content', {}).get('issueType', {}).get('name')
+    
+    print(f"Received request for analyze-backlog. Issue Type: {issue_type_name}")
+
+    if issue_type_name != 'Bug':
+        print(f"Issue is '{issue_type_name}', not a Bug. Skipping AI processing.")
+        return {
+            "status": "skipped",
+            "message": "Issue is not a bug",
+            "issue_type": issue_type_name
+        }
+
+    # 1. Backlog Agent: Ingest and Prepare
+    thread_id, error_log = agent_backlog(backlog_data)
+    
+    if not thread_id:
+        return {
+            "status": "error",
+            "message": "Failed to create backlog issue or connect to Laravel"
+        }
+
+    # Helper for storing responses (reused from analyze_error concept)
+    def store_agent_response_local(t_id, content) -> None:
+        if not t_id:
+            return
+        try:
+            print(f"Storing AI response for thread {t_id}...")
+            message_payload = {
+                "content": content
+            }
+            store_headers = {
+                "X-API-Key": PROJECT_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            store_response = requests.post(
+                f"{LARAVEL_API_URL}/ingest-analysis/{t_id}",
+                json=message_payload,
+                headers=store_headers
+            )
+            if store_response.status_code >= 400:
+                print(f"Failed to store AI response: {store_response.text}")
+            else:
+                print("AI response stored successfully.")
+        except Exception as e:
+            print(f"Error storing AI response: {e}")
+
+    # 2. AI Pipeline
+    print(f"Starting AI Pipeline for Thread {thread_id}...")
+    analysis_data = {}
+    fixed_code = ""
+    qa_result = ""
+
+    try:
+        # --- Step 1: Analyzer ---
+        analysis_data = agent_analyzer(error_log)
+
+        if "error" in analysis_data:
+             error_msg = f"Analysis Failed: {analysis_data['error']}"
+             store_agent_response_local(thread_id, error_msg)
+             return {
+                 "status": "error",
+                 "message": error_msg
+             }
+
+        # Store Analyzer Summary
+        analyzer_summary = (
+            f"**Analysis Report**\n"
+            f"- **Summary:** {analysis_data.get('error_summary')}\n"
+            f"- **File:** `{analysis_data.get('file_path')}:{analysis_data.get('line_number')}`\n"
+            f"- **Stack:** {analysis_data.get('language')} / {analysis_data.get('framework')}"
+        )
+        store_agent_response_local(thread_id, analyzer_summary)
+
+
+        # --- Step 2: Fixer ---
+        fixed_code = agent_fixer(analysis_data)
+
+        # Store Fixer Code
+        if isinstance(fixed_code, list):
+            fixer_message = f"**Proposed Fixes:**\n```json\n{json.dumps(fixed_code, indent=2)}\n```"
+        else:
+            fixer_message = f"**Proposed Fix:**\n```\n{fixed_code}\n```"
+
+        store_agent_response_local(thread_id, fixer_message)
+
+
+        # --- Step 3: Synthetic ---
+        qa_result = agent_synthetic(
+            analysis_data=analysis_data,
+            fixed_code=fixed_code
+        )
+
+        # Store Synthetic Result
+        store_agent_response_local(thread_id, f"**Synthesis & Verification Report:**\n{qa_result}")
+
+
+    except Exception as e:
+        error_message = f"Error during AI pipeline: {str(e)}"
+        store_agent_response_local(thread_id, error_message)
         return {
             "status": "error",
             "message": error_message
