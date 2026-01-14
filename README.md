@@ -78,8 +78,9 @@ Ensure you have the following installed on your local machine:
 1.  **Clone the repository**
 
     ```bash
-    git clone https://github.com/yourusername/ai-error-debugger.git
-    cd ai-error-debugger
+    git clone git@github.com:BaoNV-Kozocom/ai-hackathon.git
+    cd ai-hackathon
+    git checkout develop
     ```
 
 2.  **Install Backend Dependencies**
