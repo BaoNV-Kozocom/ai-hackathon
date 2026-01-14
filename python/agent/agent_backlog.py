@@ -4,8 +4,17 @@ import json
 import re
 from datetime import datetime
 from openai import OpenAI
-from config.config import LARAVEL_API_URL, PROJECT_API_KEY, OPENAI_API_KEY, FIXER_TOOLS
-from tools import fixer_functions
+from config.config import (
+    LARAVEL_API_URL, 
+    PROJECT_API_KEY, 
+    OPENAI_API_KEY, 
+    BACKLOG_BASE_URL,
+    BACKLOG_API_KEY,
+    BACKLOG_PROJECT_ID,
+    BACKLOG_ISSUE_TYPE_ID,
+    BACKLOG_PRIORITY_ID
+)
+
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -26,8 +35,7 @@ def agent_backlog(backlog_payload: Dict[str, Any]) -> Tuple[str, str]:
 
     system_prompt = (
         "You are an Advanced Error Log Investigator. "
-        "Your goal is to extract specific error details from a Backlog issue description. "
-        "You have access to tools to search for files or read code if the description is incomplete.\n"
+        "Your goal is to extract specific error details from a Backlog issue description.\n"
         "REQUIRED OUTPUT FORMAT (JSON):\n"
         "{\n"
         "  'message': 'Error message',\n"
@@ -38,8 +46,7 @@ def agent_backlog(backlog_payload: Dict[str, Any]) -> Tuple[str, str]:
         "  'type': 'Exception Type (e.g. ValueError)', \n"
         "  'timestamp': 'ISO8601 timestamp (e.g. 2026-01-14T09:30:00Z)' \n"
         "}\n"
-        "If exact values are missing, try to find them using tools (e.g., search for the file). "
-        "If still not found, use 'Unknown' or 0."
+        "If exact values are missing, use 'Unknown' or 0."
     )
 
     user_message = f"Summary: {summary}\n\nDescription:\n{description}"
@@ -49,65 +56,16 @@ def agent_backlog(backlog_payload: Dict[str, Any]) -> Tuple[str, str]:
         {"role": "user", "content": user_message}
     ]
 
-    # Tool execution helper (Reuse logic from agent_fixer)
-    def handle_tool_call(tool_call):
-        name = tool_call.function.name
-        try:
-            args = json.loads(tool_call.function.arguments)
-        except json.JSONDecodeError:
-            return {"status": "error", "message": "Invalid JSON arguments"}
-
-        if name == "search_info":
-            return fixer_functions.search_info(args["query"])
-        if name == "read_error_file":
-            return fixer_functions.read_error_file(
-                args["file_path"],
-                args.get("line_start"),
-                args.get("line_end")
-            )
-        if name == "execute_command":
-            return fixer_functions.execute_command(args["command"])
-        
-        return {"status": "error", "message": f"Tool {name} not supported"}
-
     parsed_data = {}
 
     try:
-        # 1. Loop for Tool Calls
         response = client.chat.completions.create(
             model="gpt-5-mini",
             messages=messages,
-            tools=FIXER_TOOLS,
-            tool_choice="auto"
+            response_format={"type": "json_object"}
         )
         
-        response_message = response.choices[0].message
-        
-        while response_message.tool_calls:
-            messages.append(response_message)
-            
-            for tool_call in response_message.tool_calls:
-                print(f"  > Backlog Agent calling tool: {tool_call.function.name}")
-                tool_output = handle_tool_call(tool_call)
-                
-                messages.append({
-                    "tool_call_id": tool_call.id,
-                    "role": "tool",
-                    "name": tool_call.function.name,
-                    "content": str(tool_output)
-                })
-            
-            # Follow-up with tool outputs
-            response = client.chat.completions.create(
-                model="gpt-5-mini",
-                messages=messages,
-                tools=FIXER_TOOLS,
-                tool_choice="auto"
-            )
-            response_message = response.choices[0].message
-
-        # 2. Final Parsing (Ensure JSON)
-        content_text = response_message.content or "{}"
+        content_text = response.choices[0].message.content or "{}"
         
         # Strip markdown if present
         match = re.search(r"```(?:json)?\n?(.*?)```", content_text, re.DOTALL)
@@ -192,3 +150,57 @@ Stack Trace:
     except Exception as e:
         print(f"Error connecting to Laravel API: {e}")
         return None, error_log
+
+
+def create_backlog_issue(error_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Creates a new issue in Backlog via API.
+    Uses configuration from config.py.
+    """
+    
+    if not BACKLOG_API_KEY or not BACKLOG_PROJECT_ID:
+        print("Missing Backlog configuration (API Key or Project ID).")
+        return {"error": "Missing Backlog configuration"}
+
+    message = error_data.get('message', 'No message')
+    file = error_data.get('file', 'Unknown file')
+    line = error_data.get('line', 'Unknown line')
+    trace = error_data.get('trace', 'No trace available')
+    
+    summary = f"Auto-Bug: {message}"
+    description = f"""
+Auto-generated Bug Report
+
+Message: {message}
+File: {file}
+Line: {line}
+
+Stack Trace:
+{trace}
+"""
+
+    payload = {
+        "projectId": BACKLOG_PROJECT_ID,
+        "summary": summary,
+        "issueTypeId": BACKLOG_ISSUE_TYPE_ID,
+        "priorityId": BACKLOG_PRIORITY_ID,
+        "description": description
+    }
+    
+    url = f"{BACKLOG_BASE_URL}/api/v2/issues?apiKey={BACKLOG_API_KEY}"
+    
+    try:
+        print(f"Creating Backlog issue: {summary}...")
+        response = requests.post(url, data=payload) # Backlog API typically accepts form-data or JSON
+        
+        if response.status_code >= 400:
+             print(f"Failed to create Backlog issue: {response.text}")
+             return {"error": response.text}
+        
+        issue_data = response.json()
+        print(f"Backlog issue created: {issue_data.get('issueKey')}")
+        return issue_data
+
+    except Exception as e:
+        print(f"Error creating Backlog issue: {e}")
+        return {"error": str(e)}
