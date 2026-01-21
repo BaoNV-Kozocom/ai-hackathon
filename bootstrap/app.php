@@ -18,12 +18,16 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (Throwable $exception) {
+            $fullTrace = $exception->getTraceAsString();
+            $traceLines = explode("\n", $fullTrace);
+            $limitedTrace = implode("\n", array_slice($traceLines, 0, 15));
+            
             // Capture error details
             $errorDetails = [
                 'message' => $exception->getMessage(),
                 'file' => $exception->getFile(),
                 'line' => $exception->getLine(),
-                'trace' => $exception->getTraceAsString(),
+                'trace' => $limitedTrace,
                 'code' => $exception->getCode(),
                 'type' => get_class($exception),
                 'timestamp' => now()->toIso8601String(),

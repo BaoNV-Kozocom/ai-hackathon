@@ -35,7 +35,22 @@ def agent_synthetic(analysis_data: Dict[str, Any], fixed_code: List[Dict[str, An
         "   - PHP: `php -l {file_path}`\n"
         "   - Python: `python3 -m py_compile {file_path}`\n"
         "   - JavaScript/Node: `node -c {file_path}`\n"
-        "4. Return a concise summary of actions and syntax check results."
+        "4. Return a well-formatted summary report.\n\n"
+        "**Response Formatting Guidelines:**\n"
+        "- Use **Markdown** formatting for clear readability.\n"
+        "- Start with a bold header: **Synthesis & Verification Report:**\n"
+        "- Use bullet points (•) or numbered lists for actions taken.\n"
+        "- Wrap file paths in backticks: `path/to/file.php`\n"
+        "- Wrap code snippets in triple backticks with language hint:\n"
+        "  ```php\n"
+        "  // code here\n"
+        "  ```\n"
+        "- For shell commands, use:\n"
+        "  ```bash\n"
+        "  php -l file.php\n"
+        "  ```\n"
+        "- Clearly indicate success ✅ or failure ❌ with icons.\n"
+        "- End with a brief conclusion about the fix status."
     )
 
     # Convert fixed_code list to formatted string if it's a list
